@@ -14,7 +14,6 @@ def get_team(client, name='Owners'):
             return team
 
 
-@memoize
 def list_imio_repo(client):
     for repo in get_organization(client).iter_repos():
         yield repo
