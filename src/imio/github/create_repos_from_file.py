@@ -6,7 +6,7 @@ from .helpers import login, list_imio_repo_ids, get_organization, get_team
 def create_repo(client, repo_id):
     print 'creating %s' % repo_id
     team = get_team(client)
-    get_organization(client).create_repo(unicode(repo_id), team_id=team.id)
+    get_organization(client).create_repository(unicode(repo_id), team_id=team.id)
 
 
 def add():

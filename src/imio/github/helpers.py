@@ -8,14 +8,14 @@ def get_organization(client):
     return client.organization('IMIO')
 
 
-def get_team(client, name='Owners'):
-    for team in get_organization(client).iter_teams():
+def get_team(client, name='Core'):
+    for team in get_organization(client).teams():
         if name == team.name:
             return team
 
 
 def list_imio_repo(client):
-    for repo in get_organization(client).iter_repos():
+    for repo in get_organization(client).repositories():
         yield repo
 
 
