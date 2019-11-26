@@ -1,11 +1,12 @@
-# generated using pypi2nix tool (version: 1.8.1)
-# See more at: https://github.com/garbas/pypi2nix
+# generated using pypi2nix tool (version: 2.0.0)
+# See more at: https://github.com/nix-community/pypi2nix
 #
 # COMMAND:
-#   pypi2nix -E libffi openssl -V 2.7 -r requirements.txt -s setuptools-scm
+#   pypi2nix -E libffi -E openssl -r requirements.txt -s setuptools-scm -V python37
 #
 
-{ pkgs ? import <nixpkgs> {}
+{ pkgs ? import <nixpkgs> {},
+  overrides ? ({ pkgs, python }: self: super: {})
 }:
 
 let
@@ -17,16 +18,7 @@ let
   import "${toString pkgs.path}/pkgs/top-level/python-packages.nix" {
     inherit pkgs;
     inherit (pkgs) stdenv;
-    python = pkgs.python27Full;
-    # patching pip so it does not try to remove files when running nix-shell
-    overrides =
-      self: super: {
-        bootstrapped-pip = super.bootstrapped-pip.overrideDerivation (old: {
-          patchPhase = old.patchPhase + ''
-            sed -i               -e "s|paths_to_remove.remove(auto_confirm)|#paths_to_remove.remove(auto_confirm)|"                -e "s|self.uninstalled = paths_to_remove|#self.uninstalled = paths_to_remove|"                  $out/${pkgs.python35.sitePackages}/pip/req/req_install.py
-          '';
-        });
-      };
+    python = pkgs.python37;
   };
 
   commonBuildInputs = with pkgs; [ libffi openssl ];
@@ -35,16 +27,18 @@ let
   withPackages = pkgs':
     let
       pkgs = builtins.removeAttrs pkgs' ["__unfix__"];
-      interpreter = pythonPackages.buildPythonPackage {
-        name = "python27Full-interpreter";
-        buildInputs = [ makeWrapper ] ++ (builtins.attrValues pkgs);
+      interpreterWithPackages = selectPkgsFn: pythonPackages.buildPythonPackage {
+        name = "python37-interpreter";
+        buildInputs = [ makeWrapper ] ++ (selectPkgsFn pkgs);
         buildCommand = ''
           mkdir -p $out/bin
-          ln -s ${pythonPackages.python.interpreter}               $out/bin/${pythonPackages.python.executable}
-          for dep in ${builtins.concatStringsSep " "               (builtins.attrValues pkgs)}; do
+          ln -s ${pythonPackages.python.interpreter} \
+              $out/bin/${pythonPackages.python.executable}
+          for dep in ${builtins.concatStringsSep " "
+              (selectPkgsFn pkgs)}; do
             if [ -d "$dep/bin" ]; then
               for prog in "$dep/bin/"*; do
-                if [ -f $prog ]; then
+                if [ -x "$prog" ] && [ -f "$prog" ]; then
                   ln -s $prog $out/bin/`basename $prog`
                 fi
               done
@@ -55,18 +49,26 @@ let
           done
           pushd $out/bin
           ln -s ${pythonPackages.python.executable} python
-          ln -s ${pythonPackages.python.executable}               python2
+          ln -s ${pythonPackages.python.executable} \
+              python3
           popd
         '';
         passthru.interpreter = pythonPackages.python;
       };
+
+      interpreter = interpreterWithPackages builtins.attrValues;
     in {
       __old = pythonPackages;
       inherit interpreter;
-      mkDerivation = pythonPackages.buildPythonPackage;
+      inherit interpreterWithPackages;
+      mkDerivation = args: pythonPackages.buildPythonPackage (args // {
+        nativeBuildInputs = (args.nativeBuildInputs or []) ++ args.buildInputs;
+      });
       packages = pkgs;
       overrideDerivation = drv: f:
-        pythonPackages.buildPythonPackage (drv.drvAttrs // f drv.drvAttrs //                                            { meta = drv.meta; });
+        pythonPackages.buildPythonPackage (
+          drv.drvAttrs // f drv.drvAttrs // { meta = drv.meta; }
+        );
       withPackages = pkgs'':
         withPackages (pkgs // pkgs'');
     };
@@ -74,27 +76,14 @@ let
   python = withPackages {};
 
   generated = self: {
-
-    "asn1crypto" = python.mkDerivation {
-      name = "asn1crypto-0.24.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/fc/f1/8db7daa71f414ddabfa056c4ef792e1461ff655c2ae2928a2b675bfed6b4/asn1crypto-0.24.0.tar.gz"; sha256 = "9d5c20441baf0cb60a4ac34cc447c6c189024b6b4c6cd7877034f4965c464e49"; };
-      doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
-      propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
-        homepage = "https://github.com/wbond/asn1crypto";
-        license = licenses.mit;
-        description = "Fast ASN.1 parser and serializer with definitions for private keys, public keys, certificates, CRL, OCSP, CMS, PKCS#3, PKCS#7, PKCS#8, PKCS#12, PKCS#5, X.509 and TSP";
-      };
-    };
-
-
-
     "certifi" = python.mkDerivation {
-      name = "certifi-2018.11.29";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/55/54/3ce77783acba5979ce16674fc98b1920d00b01d337cfaaf5db22543505ed/certifi-2018.11.29.tar.gz"; sha256 = "47f9c83ef4c0c621eaef743f133f09fa8a74a9b75f037e8624f83bd1b6626cb7"; };
+      name = "certifi-2019.9.11";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/62/85/7585750fd65599e88df0fed59c74f5075d4ea2fe611deceb95dd1c2fb25b/certifi-2019.9.11.tar.gz";
+        sha256 = "e4f3620cfea4f83eedc95b24abd9cd56f3c4b146dd0177e83a21b4eb49e21e50";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://certifi.io/";
@@ -103,16 +92,17 @@ let
       };
     };
 
-
-
     "cffi" = python.mkDerivation {
-      name = "cffi-1.12.1";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/bc/81/47bd0404f2cb5363edb371e3b15da6387b5e9b80122e5b81be8b8f411e9b/cffi-1.12.1.tar.gz"; sha256 = "9b6f7ba4e78c52c1a291d0c0c0bd745d19adde1a9e1c03cb899f0c6efd6f8033"; };
+      name = "cffi-1.13.2";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/2d/bf/960e5a422db3ac1a5e612cb35ca436c3fc985ed4b7ed13a1b4879006f450/cffi-1.13.2.tar.gz";
+        sha256 = "599a1e8ff057ac530c9ad1778293c665cb81a791421f46922d80a86473c13346";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [
-      self."pycparser"
-    ];
+        self."pycparser"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "http://cffi.readthedocs.org";
         license = licenses.mit;
@@ -120,13 +110,14 @@ let
       };
     };
 
-
-
     "chardet" = python.mkDerivation {
       name = "chardet-3.0.4";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/fc/bb/a5768c230f9ddb03acc9ef3f0d4a3cf93462473795d18e9535498c8f929d/chardet-3.0.4.tar.gz"; sha256 = "84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae"; };
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/fc/bb/a5768c230f9ddb03acc9ef3f0d4a3cf93462473795d18e9535498c8f929d/chardet-3.0.4.tar.gz";
+        sha256 = "84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/chardet/chardet";
@@ -135,56 +126,43 @@ let
       };
     };
 
-
-
     "cryptography" = python.mkDerivation {
-      name = "cryptography-2.5";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/69/ed/5e97b7f54237a9e4e6291b6e52173372b7fa45ca730d36ea90b790c0059a/cryptography-2.5.tar.gz"; sha256 = "4946b67235b9d2ea7d31307be9d5ad5959d6c4a8f98f900157b47abddf698401"; };
+      name = "cryptography-2.8";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/be/60/da377e1bed002716fb2d5d1d1cab720f298cb33ecff7bf7adea72788e4e4/cryptography-2.8.tar.gz";
+        sha256 = "3cda1f0ed8747339bbdf71b9f38ca74c7b592f24f65cdb3ab3765e4b02871651";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [
+        self."cffi"
+        self."setuptools"
+        self."wheel"
+      ];
       propagatedBuildInputs = [
-      self."asn1crypto"
-      self."cffi"
-      self."enum34"
-      self."idna"
-      self."ipaddress"
-      self."six"
-    ];
+        self."cffi"
+        self."six"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/pyca/cryptography";
-        license = licenses.bsdOriginal;
+        license = licenses.asl20;
         description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers.";
       };
     };
 
-
-
-    "enum34" = python.mkDerivation {
-      name = "enum34-1.1.6";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/bf/3e/31d502c25302814a7c2f1d3959d2a3b3f78e509002ba91aea64993936876/enum34-1.1.6.tar.gz"; sha256 = "8ad8c4783bf61ded74527bffb48ed9b54166685e4230386a9ed9b1279e2df5b1"; };
+    "github3-py" = python.mkDerivation {
+      name = "github3-py-1.3.0";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/2c/78/b593098dc5a16c03a91ef2a2f6341d17943b5d5359c53335a7a04beced42/github3.py-1.3.0.tar.gz";
+        sha256 = "15a115c18f7bfcf934dfef7ab103844eb9f620c586bad65967708926da47cbda";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
-      propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
-        homepage = "https://bitbucket.org/stoneleaf/enum34";
-        license = licenses.bsdOriginal;
-        description = "Python 3.4 Enum backported to 3.3, 3.2, 3.1, 2.7, 2.6, 2.5, and 2.4";
-      };
-    };
-
-
-
-    "github3.py" = python.mkDerivation {
-      name = "github3.py-1.3.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/2c/78/b593098dc5a16c03a91ef2a2f6341d17943b5d5359c53335a7a04beced42/github3.py-1.3.0.tar.gz"; sha256 = "15a115c18f7bfcf934dfef7ab103844eb9f620c586bad65967708926da47cbda"; };
-      doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [
-      self."jwcrypto"
-      self."python-dateutil"
-      self."requests"
-      self."uritemplate"
-    ];
+        self."jwcrypto"
+        self."python-dateutil"
+        self."requests"
+        self."uritemplate"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github3.readthedocs.io";
         license = licenses.bsdOriginal;
@@ -192,13 +170,14 @@ let
       };
     };
 
-
-
     "idna" = python.mkDerivation {
       name = "idna-2.8";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/ad/13/eb56951b6f7950cadb579ca166e448ba77f9d24efc03edd7e55fa57d04b7/idna-2.8.tar.gz"; sha256 = "c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407"; };
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/ad/13/eb56951b6f7950cadb579ca166e448ba77f9d24efc03edd7e55fa57d04b7/idna-2.8.tar.gz";
+        sha256 = "c357b3f628cf53ae2c4c05627ecc484553142ca23264e593d327bcde5e9c3407";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/kjd/idna";
@@ -207,45 +186,32 @@ let
       };
     };
 
-
-
-    "ipaddress" = python.mkDerivation {
-      name = "ipaddress-1.0.22";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/97/8d/77b8cedcfbf93676148518036c6b1ce7f8e14bf07e95d7fd4ddcb8cc052f/ipaddress-1.0.22.tar.gz"; sha256 = "b146c751ea45cad6188dd6cf2d9b757f6f4f8d6ffb96a023e6f2e26eea02a72c"; };
-      doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
-      propagatedBuildInputs = [ ];
-      meta = with pkgs.stdenv.lib; {
-        homepage = "https://github.com/phihag/ipaddress";
-        license = licenses.psfl;
-        description = "IPv4/IPv6 manipulation library";
-      };
-    };
-
-
-
     "jwcrypto" = python.mkDerivation {
       name = "jwcrypto-0.6.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/d5/27/4f121e9596826adf050fe255b5d27f6f97a421d1ec3943d8de566fdc62c0/jwcrypto-0.6.0.tar.gz"; sha256 = "a87ac0922d09d9a65011f76d99849f1fbad3d95439c7452cebf4ab0871c2b665"; };
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/d5/27/4f121e9596826adf050fe255b5d27f6f97a421d1ec3943d8de566fdc62c0/jwcrypto-0.6.0.tar.gz";
+        sha256 = "a87ac0922d09d9a65011f76d99849f1fbad3d95439c7452cebf4ab0871c2b665";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [
-      self."cryptography"
-    ];
+        self."cryptography"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/latchset/jwcrypto";
-        license = "LGPLv3+";
+        license = licenses.lgpl3Plus;
         description = "Implementation of JOSE Web standards";
       };
     };
 
-
-
     "pycparser" = python.mkDerivation {
       name = "pycparser-2.19";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/68/9e/49196946aee219aead1290e00d1e7fdeab8567783e83e1b9ab5585e6206a/pycparser-2.19.tar.gz"; sha256 = "a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3"; };
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/68/9e/49196946aee219aead1290e00d1e7fdeab8567783e83e1b9ab5585e6206a/pycparser-2.19.tar.gz";
+        sha256 = "a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/eliben/pycparser";
@@ -254,16 +220,21 @@ let
       };
     };
 
-
-
     "python-dateutil" = python.mkDerivation {
-      name = "python-dateutil-2.8.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/ad/99/5b2e99737edeb28c71bcbec5b5dda19d0d9ef3ca3e92e3e925e7c0bb364c/python-dateutil-2.8.0.tar.gz"; sha256 = "c89805f6f4d64db21ed966fda138f8a5ed7a4fdbc1a8ee329ce1b74e3c74da9e"; };
+      name = "python-dateutil-2.8.1";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/be/ed/5bbc91f03fa4c839c4c7360375da77f9659af5f7086b7a7bdda65771c8e0/python-dateutil-2.8.1.tar.gz";
+        sha256 = "73ebfe9dbf22e832286dafa60473e4cd239f8592f699aa5adaf10050e6e1823c";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [
+        self."setuptools"
+        self."setuptools-scm"
+        self."wheel"
+      ];
       propagatedBuildInputs = [
-      self."six"
-    ];
+        self."six"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://dateutil.readthedocs.io";
         license = licenses.bsdOriginal;
@@ -271,20 +242,20 @@ let
       };
     };
 
-
-
     "requests" = python.mkDerivation {
-      name = "requests-2.21.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/52/2c/514e4ac25da2b08ca5a464c50463682126385c4272c18193876e91f4bc38/requests-2.21.0.tar.gz"; sha256 = "502a824f31acdacb3a35b6690b5fbf0bc41d63a24a45c4004352b0242707598e"; };
+      name = "requests-2.22.0";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/01/62/ddcf76d1d19885e8579acb1b1df26a852b03472c0e46d2b959a714c90608/requests-2.22.0.tar.gz";
+        sha256 = "11e007a8a2aa0323f5a921e9e6a2d7e4e67d9877e85773fba9ba6419025cbeb4";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [
-      self."certifi"
-      self."chardet"
-      self."cryptography"
-      self."idna"
-      self."urllib3"
-    ];
+        self."certifi"
+        self."chardet"
+        self."idna"
+        self."urllib3"
+      ];
       meta = with pkgs.stdenv.lib; {
         homepage = "http://python-requests.org";
         license = licenses.asl20;
@@ -292,13 +263,30 @@ let
       };
     };
 
-
+    "setuptools" = python.mkDerivation {
+      name = "setuptools-42.0.1";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/ce/1d/96320b9784b04943c924a9f1c6fa49124a1542039ce098a5f9a369227bad/setuptools-42.0.1.zip";
+        sha256 = "be5c1ea910cd1f37d1dd79b5f74b68b359348f558fbe4866b15f54a052d61ee1";
+};
+      doCheck = commonDoCheck;
+      buildInputs = commonBuildInputs ++ [ ];
+      propagatedBuildInputs = [ ];
+      meta = with pkgs.stdenv.lib; {
+        homepage = "https://github.com/pypa/setuptools";
+        license = licenses.mit;
+        description = "Easily download, build, install, upgrade, and uninstall Python packages";
+      };
+    };
 
     "setuptools-scm" = python.mkDerivation {
-      name = "setuptools-scm-3.2.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/54/85/514ba3ca2a022bddd68819f187ae826986051d130ec5b972076e4f58a9f3/setuptools_scm-3.2.0.tar.gz"; sha256 = "52ab47715fa0fc7d8e6cd15168d1a69ba995feb1505131c3e814eb7087b57358"; };
+      name = "setuptools-scm-3.3.3";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/83/44/53cad68ce686585d12222e6769682c4bdb9686808d2739671f9175e2938b/setuptools_scm-3.3.3.tar.gz";
+        sha256 = "bd25e1fb5e4d603dcf490f1fde40fb4c595b357795674c3e5cb7f6217ab39ea5";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/pypa/setuptools_scm/";
@@ -307,13 +295,14 @@ let
       };
     };
 
-
-
     "six" = python.mkDerivation {
-      name = "six-1.12.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/dd/bf/4138e7bfb757de47d1f4b6994648ec67a51efe58fa907c1e11e350cddfca/six-1.12.0.tar.gz"; sha256 = "d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73"; };
+      name = "six-1.13.0";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/94/3e/edcf6fef41d89187df7e38e868b2dd2182677922b600e880baad7749c865/six-1.13.0.tar.gz";
+        sha256 = "30f610279e8b2578cab6db20741130331735c781b56053c59c4076da27f06b66";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://github.com/benjaminp/six";
@@ -322,13 +311,14 @@ let
       };
     };
 
-
-
     "uritemplate" = python.mkDerivation {
       name = "uritemplate-3.0.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/cd/db/f7b98cdc3f81513fb25d3cbe2501d621882ee81150b745cdd1363278c10a/uritemplate-3.0.0.tar.gz"; sha256 = "c02643cebe23fc8adb5e6becffe201185bf06c40bda5c0b4028a93f1527d011d"; };
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/cd/db/f7b98cdc3f81513fb25d3cbe2501d621882ee81150b745cdd1363278c10a/uritemplate-3.0.0.tar.gz";
+        sha256 = "c02643cebe23fc8adb5e6becffe201185bf06c40bda5c0b4028a93f1527d011d";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
+      buildInputs = commonBuildInputs ++ [ ];
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://uritemplate.readthedocs.org";
@@ -337,19 +327,15 @@ let
       };
     };
 
-
-
     "urllib3" = python.mkDerivation {
-      name = "urllib3-1.24.1";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/b1/53/37d82ab391393565f2f831b8eedbffd57db5a718216f82f1a8b4d381a1c1/urllib3-1.24.1.tar.gz"; sha256 = "de9529817c93f27c8ccbfead6985011db27bd0ddfcdb2d86f3f663385c6a9c22"; };
+      name = "urllib3-1.25.7";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/ad/fc/54d62fa4fc6e675678f9519e677dfc29b8964278d75333cf142892caf015/urllib3-1.25.7.tar.gz";
+        sha256 = "f3c5fd51747d450d4dcf6f923c81f78f811aab8205fda64b0aba34a4e48b0745";
+};
       doCheck = commonDoCheck;
-      buildInputs = commonBuildInputs;
-      propagatedBuildInputs = [
-      self."certifi"
-      self."cryptography"
-      self."idna"
-      self."ipaddress"
-    ];
+      buildInputs = commonBuildInputs ++ [ ];
+      propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
         homepage = "https://urllib3.readthedocs.io/";
         license = licenses.mit;
@@ -357,15 +343,33 @@ let
       };
     };
 
+    "wheel" = python.mkDerivation {
+      name = "wheel-0.33.6";
+      src = pkgs.fetchurl {
+        url = "https://files.pythonhosted.org/packages/59/b0/11710a598e1e148fb7cbf9220fd2a0b82c98e94efbdecb299cb25e7f0b39/wheel-0.33.6.tar.gz";
+        sha256 = "10c9da68765315ed98850f8e048347c3eb06dd81822dc2ab1d4fde9dc9702646";
+};
+      doCheck = commonDoCheck;
+      buildInputs = commonBuildInputs ++ [ ];
+      propagatedBuildInputs = [ ];
+      meta = with pkgs.stdenv.lib; {
+        homepage = "https://github.com/pypa/wheel";
+        license = licenses.mit;
+        description = "A built-package format for Python.";
+      };
+    };
   };
   localOverridesFile = ./requirements_override.nix;
-  overrides = import localOverridesFile { inherit pkgs python; };
+  localOverrides = import localOverridesFile { inherit pkgs python; };
   commonOverrides = [
-
+        (let src = pkgs.fetchFromGitHub { owner = "nix-community"; repo = "pypi2nix-overrides"; rev = "db87933d87d9b3943cf636a49f16b76c9ea66db7"; sha256 = "1phiqh72dyg7qhkv15kdg4gjkx8rkywvs41j7liz5faj66ijlpv6"; } ; in import "${src}/overrides.nix" { inherit pkgs python; })
+  ];
+  paramOverrides = [
+    (overrides { inherit pkgs python; })
   ];
   allOverrides =
     (if (builtins.pathExists localOverridesFile)
-     then [overrides] else [] ) ++ commonOverrides;
+     then [localOverrides] else [] ) ++ commonOverrides ++ paramOverrides;
 
 in python.withPackages
    (fix' (pkgs.lib.fold

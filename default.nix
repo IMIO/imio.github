@@ -1,9 +1,7 @@
-with import <nixpkgs> {};
-with pkgs.python27Packages;
-let
-  deps = import ./requirements.nix { inherit pkgs; };
-in
-buildPythonPackage {
+with import <nixpkgs> { };
+with pkgs.python37Packages;
+let deps = import ./requirements.nix { inherit pkgs; };
+in buildPythonPackage {
   name = "imio-github";
   version = "0.1";
   src = ./.;
