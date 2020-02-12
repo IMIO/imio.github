@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from .cache import memoize
 import netrc
 import github3
 
@@ -8,7 +7,7 @@ def get_organization(client):
     return client.organization('IMIO')
 
 
-def get_team(client, name='Core'):
+def get_team(client, name='IMIO Core'):
     for team in get_organization(client).teams():
         if name == team.name:
             return team
